@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
 		printf("file base (buffer begin): %p\n", file->_base); //
 		printf("file buf size: %d\n", file->_bufsiz);
 		printf("file char buf: %d\n", file->_charbuf);
-		printf("file cnt (êîëâî îñò áàéòîâ â áóôôåğå): %d\n", file->_cnt);
+		printf("file cnt (ÃªÃ®Ã«Ã¢Ã® Ã®Ã±Ã² Ã¡Ã Ã©Ã²Ã®Ã¢ Ã¢ Ã¡Ã³Ã´Ã´Ã¥ÄŸÃ¥): %d\n", file->_cnt);
 		printf("file file (description): %d\n", file->_file);
 		printf("file flag: %d\n", file->_flag);
 		printf("file ptr (now position buffer): %p\n", file->_ptr);
@@ -65,4 +65,5 @@ int main(int argc, char* argv[])
 	}
 
 	return 0;
+
 }
