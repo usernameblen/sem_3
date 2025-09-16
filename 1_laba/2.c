@@ -15,6 +15,7 @@
 #define INVALID_ARGUMENT -9
 #define INVALID_ARGUMENT_MENU -10
 #define USER_FOR_BLOCK_NOT_FOUND -11
+#define NOT_NUMBER -12
 #define TO_MENU 55555555
 #define CLOSE_SHELL 82393149
 
@@ -130,13 +131,13 @@ void print_date()
 	printf("\nDate: %02d:%02d:%02d\n", local->tm_mday, local->tm_mon + 1, local->tm_year + 1900);
 }
 
-int print_howmuch(char const* date, char const* flag)
+int print_howmuch(char const* date, char const* time_, char const* flag)
 {
 	time_t now = time(NULL);
 	struct tm* local = localtime(&now);
 
-	struct tm* time;
-	int res_of_pars = parsing_time(date, &time, local);
+	struct tm input_time = { 0 };
+	int res_of_pars = parsing_time(date, time_, &input_time, local);
 	if (res_of_pars == DATA_FORMAT_ERROR)
 	{
 		return DATA_FORMAT_ERROR;
@@ -146,25 +147,29 @@ int print_howmuch(char const* date, char const* flag)
 		return YEAR_BEFORE_1900;
 	}
 
-	time_t data1 = mktime(time);
+	time_t data1 = mktime(&input_time);
 	time_t data2 = mktime(local);
-	int second = difftime(data1, data2);
+	if (data1 == -1 || data2 == -1) 
+	{
+		return DATA_FORMAT_ERROR;
+	}
+	unsigned int second = difftime(data1, data2);
 
 	if (strcmp("-s", flag) == 0)
 	{
-		printf("\n%d\n", second);
+		printf("\n%u\n", second);
 	}
 	else if (strcmp("-m", flag) == 0)
 	{
-		printf("\n%d\n", second / 60);
+		printf("\n%u\n", second / 60);
 	}
 	else if (strcmp("-h", flag) == 0)
 	{
-		printf("\n%d\n", second / 3600);
+		printf("\n%u\n", second / 3600);
 	}
 	else if (strcmp("-y", flag) == 0)
 	{
-		printf("\n%d\n", local->tm_year - time->tm_year);
+		printf("\n%u\n", local->tm_year - input_time.tm_year);
 	}
 	else
 	{
@@ -177,7 +182,14 @@ int print_howmuch(char const* date, char const* flag)
 int parsing_time(char const* date, struct tm* time, struct tm const* local)
 {
 	int day, month, year, hour, minute, second;
-	sscanf(date, "%d:%d:%d %d:%d:%d", &day, &month, &year, &hour, &minute, &second);
+	if (sscanf(date, "%d:%d:%d", &day, &month, &year) != 3)
+	{
+		return DATA_FORMAT_ERROR;
+	}
+	if (sscanf(_time, "%d:%d:%d", &hour, &minute, &second) != 3)
+	{
+		return DATA_FORMAT_ERROR;
+	}
 	if ((day > 31 || day < 1) ||
 		(month < 0 || month > 11) ||
 		(year < 0 || year > local->tm_year) ||
@@ -187,17 +199,14 @@ int parsing_time(char const* date, struct tm* time, struct tm const* local)
 	{
 		return DATA_FORMAT_ERROR;
 	}
-	if (year < 1900)
-	{
-		return YEAR_BEFORE_1900;
-	}
 
 	time->tm_mday = day;
-	time->tm_mon = month;
+	time->tm_mon = month - 1;
 	time->tm_year = year - 1900;
 	time->tm_hour = hour;
 	time->tm_min = minute;
 	time->tm_sec = second;
+	to_write->tm_isdst = -1;
 	return ALL_GOOD;
 }
 
@@ -221,13 +230,18 @@ int menu(users* arr)
 	int have_an_acc = 0;
 	int index_of_user;
 	printf("Hi!! do you have acc?\n Yes - 1\n No - 0\n");
-	scanf("%d", &have_an_acc);
+  	if(scanf("%d", &have_an_acc) != 1)
+	{
+		while (getchar() != '\n');
+		return NOT_NUMBER;
+	}
 
 	if (have_an_acc == 0)
 	{
 		int res_of_registration = registration(arr);
 		if (res_of_registration == ERROR_OF_REGISTRATION)
 		{
+			while (getchar() != '\n');
 			return ERROR_OF_REGISTRATION;
 		}
 		else if (res_of_registration == MEMORY_ERROR)
@@ -241,6 +255,7 @@ int menu(users* arr)
 		int res_of_authorization = authorization(arr);
 		if (res_of_authorization == ERROR_OF_AUTHORIZATION)
 		{
+			while (getchar() != '\n');
 			return ERROR_OF_AUTHORIZATION;
 		}
 		index_of_user = res_of_authorization;
@@ -253,6 +268,8 @@ int menu(users* arr)
 
 	if (arr->block[index_of_user] == 0)
 	{
+		printf("\nYou can start using it!\n");
+		
 		printf("Available commands: \n");
 		printf("Time\n");
 		printf("Date\n");
@@ -260,11 +277,19 @@ int menu(users* arr)
 		printf("Logout\n");
 		printf("Sanctions <username>\n");
 
-		strcpy(input, "");
 		while (strcmp("Logout", input) != 0)
 		{
+			while (getchar() != '\n');
+			
 			printf("\nEnter command: ");
-			scanf("%s", input);
+			fgets(input, BUFSIZ, stdin);
+			
+			size_t len = strlen(input);
+			while (len > 0 && isspace((unsigned char)input[len - 1])) {
+				input[len - 1] = '\0';
+				--len;
+			}
+			
 			if (strcmp(input, "Time") == 0)
 			{
 				print_time();
@@ -276,14 +301,14 @@ int menu(users* arr)
 			else if (strncmp(input, "Howmuch", 7) == 0)
 			{
 				
-				char remaining[BUFSIZ];
-				fgets(remaining, sizeof(remaining), stdin); 
+				char _date[20];
+				char _time[20];
+				char flag[10];
+				int parsed = sscanf(input + 8, "%19s %19s %9s", _date, _time, flag);
 
-				char date_time[30];
-				char flag[3];
-				if (sscanf(input + 8, "%29s %2s", date_time, flag) == 2)
+				if (parsed == 3)
 				{
-					int res_of_howmuch = print_howmuch(date_time, flag);
+					int res_of_howmuch = print_howmuch(_date, _time, flag);
 					if (res_of_howmuch == DATA_FORMAT_ERROR)
 					{
 						printf("Format of data is not right");
@@ -304,10 +329,6 @@ int menu(users* arr)
 			}
 			else if (strncmp(input, "Sanctions", 9) == 0)
 			{
-				
-				char remaining[BUFSIZ];
-				fgets(remaining, sizeof(remaining), stdin);
-
 				char username[8];
 				if (sscanf(input + 10, "%7s", username) == 1)
 				{
@@ -318,7 +339,7 @@ int menu(users* arr)
 					int res_of_sanction = make_sanctions(username, arr);
 					if (res_of_sanction == ALL_GOOD)
 					{
-						printf("\n52\n");
+						printf("52\n");
 					}
 					if (res_of_sanction == USER_FOR_BLOCK_NOT_FOUND)
 					{
@@ -338,17 +359,14 @@ int menu(users* arr)
 			{
 				printf("Unknown command\n");
 			}
-
 		}
 		return TO_MENU;
-
 	}
 	else
 	{
 		printf("Your account is blocked!\n");
 		return CLOSE_SHELL;
 	}
-
 }
 
 
@@ -381,16 +399,20 @@ int authorization(users const* arr)//return index of user
 	if (index_of_log >= 0)
 	{
 		printf(" good!\nPassword: ");
-		scanf("%d", &pass);
-		
-		if (pass > 100000)
+		int res = scanf("%d", &pass);
+
+		if (res != 1) //its not number
+		{
+			while (getchar() != '\n');
+			return ERROR_OF_AUTHORIZATION;
+		}
+		else if (pass > 100000)
 		{
 			return ERROR_OF_AUTHORIZATION;
 		}
 
 		if (pass == arr->_passwords[index_of_log])
 		{
-			printf("\nYou can start using it!\n");
 			return index_of_log;
 		}
 		else
@@ -416,8 +438,12 @@ int registration(users* arr) //return index_of_user
 	}
 
 	printf("\nPassword(from 0 to 100000): ");
-	scanf("%d", &pass);
-	if (pass > 100000)
+	int res = scanf("%d", &pass);
+	if (res != 1)
+	{
+		return ERROR_OF_REGISTRATION;
+	}
+	else if (pass > 100000)
 	{
 		return ERROR_OF_REGISTRATION;
 	}
@@ -425,7 +451,6 @@ int registration(users* arr) //return index_of_user
 	int res_of_add = add_user(arr, log, pass);
 	if (res_of_add >= ALL_GOOD)
 	{
-		printf("\nYou can start using it!\n");
 		return res_of_add;
 	}
 	else
@@ -450,31 +475,32 @@ int main()
 		switch (menu(&users_))
 		{
 		case ERROR_OF_REGISTRATION:
-			printf("Error: invalid login or password. Try again:");
+			printf("Error: invalid login or password. Try again:\n");
 			break;
 
 		case MEMORY_ERROR:
-			printf("Error: memory error.");
+			printf("Error: memory error.\n");
 			lol = 0;
 			break;
 
 		case ERROR_OF_AUTHORIZATION:
-			printf("Error: invalid login or password. Try again:");
+			printf("Error: invalid login or password. Try again:\n");
 			break;
 
 		case INVALID_ARGUMENT_MENU:
-			printf("Error: invalid argument in menu. You must enter 1 or 0. Try again:");
+			printf("Error: invalid argument in menu. You must enter 1 or 0. Try again:\n");
 			break;
 
 		case TO_MENU:
 			break;
 
 		case CLOSE_SHELL:
-			lol = 0;
+			break;
+		default:
+			printf("idk bro hehe");
 			break;
 		}
 	}
 	clean(&users_);
 	return ALL_GOOD;
 }
-
